@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { View, Text, TextInput, Button, StyleSheet, Switch } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, TextInput, Button, StyleSheet, Switch, ScrollView } from 'react-native';
 import { LineChart } from 'react-native-chart-kit';
 import { Dimensions } from 'react-native';
 
@@ -8,11 +8,23 @@ export default function App() {
   const [tasa, setTasa] = useState('');
   const [tiempo, setTiempo] = useState('');
   const [compuesto, setCompuesto] = useState(false);
+  const [graficoMensual, setGraficoMensual] = useState(false);
   const [resultado, setResultado] = useState(null);
   const [graficoData, setGraficoData] = useState([]);
-  const [graficoMensual, setGraficoMensual] = useState(false);
+  const [labelData, setLabelData] = useState([]);
 
-
+  // Función para formatear números grandes
+  const formatLargeNumber = (value) => {
+    const numValue = parseInt(value);
+    
+    if (numValue >= 1000000) {
+      return `$${(numValue / 1000000).toFixed(2)}M`;
+    } else if (numValue >= 1000) {
+      return `$${(numValue / 1000).toFixed(2)}k`;
+    } else {
+      return `$${numValue}`;
+    }
+  };
 
   const calcular = () => {
     const P = parseFloat(capital);
@@ -21,15 +33,21 @@ export default function App() {
   
     if (isNaN(P) || isNaN(r) || isNaN(t)) {
       setResultado('Por favor ingresa valores válidos.');
-      setGraficoData([]); // Limpiar gráfico si hay error
+      setGraficoData([]);
+      setLabelData([]);
       return;
     }
   
     let resultadoTexto = '';
     const datos = [];
-
+    const labels = [];
+  
+    const MAX_LABELS_X = 6; // 💡 cantidad máxima visible
+  
     if (graficoMensual) {
       const meses = t * 12;
+      const saltoEtiqueta = Math.ceil(meses / MAX_LABELS_X);
+  
       for (let i = 1; i <= meses; i++) {
         let acumulado;
         if (compuesto) {
@@ -37,9 +55,18 @@ export default function App() {
         } else {
           acumulado = P + (P * r * (i / 12));
         }
-        datos.push(parseFloat(acumulado.toFixed(2)));
+        datos.push(Math.floor(acumulado));
+  
+        // ✅ Etiquetas espaciadas
+        if (i % saltoEtiqueta === 0 || i === 1 || i === meses) {
+          labels.push(`M${i}`);
+        } else {
+          labels.push('');
+        }
       }
     } else {
+      const saltoEtiqueta = Math.ceil(t / MAX_LABELS_X);
+  
       for (let i = 1; i <= t; i++) {
         let acumulado;
         if (compuesto) {
@@ -47,96 +74,133 @@ export default function App() {
         } else {
           acumulado = P + (P * r * i);
         }
-        datos.push(parseFloat(acumulado.toFixed(2)));
+        datos.push(Math.floor(acumulado));
+  
+        // ✅ Etiquetas espaciadas también en anual
+        if (i % saltoEtiqueta === 0 || i === 1 || i === t) {
+          labels.push(`A${i}`);
+        } else {
+          labels.push('');
+        }
       }
     }
   
-    if (compuesto) {
-      const A = datos[t - 1];
-      resultadoTexto = `Interés compuesto: $${(A - P).toFixed(2)}\nTotal acumulado: $${A.toFixed(2)}`;
-    } else {
-      const A = datos[t - 1];
-      resultadoTexto = `Interés simple: $${(A - P).toFixed(2)}\nTotal acumulado: $${A.toFixed(2)}`;
-    }
+    const A = datos[datos.length - 1];
+    const interes = A - P;
+  
+    resultadoTexto = `Interés ${compuesto ? 'compuesto' : 'simple'}: $${interes.toLocaleString('es-CL')}\nTotal acumulado: $${A.toLocaleString('es-CL')}`;
   
     setResultado(resultadoTexto);
     setGraficoData(datos);
+    setLabelData(labels);
   };
   
 
+  // Recalcular el gráfico cuando cambie entre mensual y anual
+  useEffect(() => {
+    if (capital && tasa && tiempo) {
+      calcular();
+    }
+  }, [graficoMensual, compuesto]);
+
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Calculadora de Interés</Text>
+    <ScrollView>
+      <View style={styles.container}>
+        <Text style={styles.title}>Calculadora de Interés</Text>
 
-      <TextInput
-        style={styles.input}
-        placeholder="Capital (P)"
-        keyboardType="numeric"
-        value={capital}
-        onChangeText={setCapital}
-      />
-      <TextInput
-        style={styles.input}
-        placeholder="Tasa de interés (%)"
-        keyboardType="numeric"
-        value={tasa}
-        onChangeText={setTasa}
-      />
-      <TextInput
-        style={styles.input}
-        placeholder="Periodo (años)"
-        keyboardType="numeric"
-        value={tiempo}
-        onChangeText={setTiempo}
-      />
+        <TextInput
+          style={styles.input}
+          placeholder="Capital (P)"
+          keyboardType="numeric"
+          value={capital}
+          onChangeText={setCapital}
+        />
+        <TextInput
+          style={styles.input}
+          placeholder="Tasa de interés (%)"
+          keyboardType="numeric"
+          value={tasa}
+          onChangeText={setTasa}
+        />
+        <TextInput
+          style={styles.input}
+          placeholder="Periodo (años)"
+          keyboardType="numeric"
+          value={tiempo}
+          onChangeText={setTiempo}
+        />
 
-      <View style={styles.switchContainer}>
-        <Text>Interés compuesto</Text>
-        <Switch value={compuesto} onValueChange={setCompuesto} />
+        <View style={styles.switchContainer}>
+          <Text>Interés compuesto</Text>
+          <Switch value={compuesto} onValueChange={setCompuesto} />
+        </View>
+        <View style={styles.switchContainer}>
+          <Text>Mostrar gráfico mensual</Text>
+          <Switch 
+            value={graficoMensual} 
+            onValueChange={(newValue) => {
+              setGraficoMensual(newValue);
+            }} 
+          />
+        </View>
+
+        <Button title="Calcular" onPress={calcular} />
+
+        {resultado && <Text style={styles.result}>{resultado}</Text>}
+        
+        {graficoData.length > 0 && (
+          <View style={styles.graphContainer}>
+            <Text style={styles.graphTitle}>
+              Proyección {graficoMensual ? 'Mensual' : 'Anual'}
+            </Text>
+            <LineChart
+              data={{
+                labels: labelData,
+                datasets: [{ data: graficoData }],
+              }}
+              width={Dimensions.get('window').width - 40}
+              height={220}
+              fromZero={false}
+              yAxisSuffix=""
+              yAxisInterval={1}
+              bezier
+              chartConfig={{
+                backgroundColor: '#fff',
+                backgroundGradientFrom: '#f0f4f7',
+                backgroundGradientTo: '#f0f4f7',
+                color: (opacity = 1) => `rgba(0, 128, 255, ${opacity})`,
+                labelColor: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
+                style: {
+                  borderRadius: 16,
+                },
+                propsForDots: {
+                  r: '3',  // Reducido para gráficos mensuales con muchos puntos
+                  strokeWidth: '2',
+                  stroke: '#007AFF',
+                },
+                propsForBackgroundLines: {
+                  strokeDasharray: '',
+                  strokeWidth: 0.4,
+                },
+                formatYLabel: (value) => formatLargeNumber(value),
+                decimalPlaces: 0,
+              }}
+              style={{
+                marginTop: 10,
+                borderRadius: 16,
+              }}
+              withInnerLines={true}
+              withVerticalLines={false}
+              withHorizontalLines={true}
+              withVerticalLabels={true}
+              withHorizontalLabels={true}
+              formatYLabel={(value) => formatLargeNumber(value)}
+              hidePointsAtIndex={graficoMensual ? Array.from({ length: labelData.length }).map((_, i) => i % 3 !== 0 ? i : null).filter(i => i !== null) : []}
+            />
+          </View>
+        )}
       </View>
-      <View style={styles.switchContainer}>
-        <Text>Mostrar gráfico mensual</Text>
-        <Switch value={graficoMensual} onValueChange={setGraficoMensual} />
-      </View>
-
-      <Button title="Calcular" onPress={calcular} />
-
-      {resultado && <Text style={styles.result}>{resultado}</Text>}
-      {graficoData.length > 0 && (
-  <LineChart
-    data={{
-      labels: graficoData.map((_, i) =>
-        graficoMensual ? `M${i + 1}` : `Año ${i + 1}`
-      ),
-      datasets: [{ data: graficoData.map(v => parseFloat(v)) }],
-    }}
-    width={Dimensions.get('window').width - 40}
-    height={220}
-    yAxisSuffix="$"
-    chartConfig={{
-      backgroundColor: '#fff',
-      backgroundGradientFrom: '#f0f4f7',
-      backgroundGradientTo: '#f0f4f7',
-      decimalPlaces: 2,
-      color: (opacity = 1) => `rgba(0, 128, 255, ${opacity})`,
-      labelColor: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
-      style: {
-        borderRadius: 16,
-      },
-      propsForDots: {
-        r: '4',
-        strokeWidth: '2',
-        stroke: '#007AFF',
-      },
-    }}
-    style={{
-      marginTop: 20,
-      borderRadius: 16,
-    }}
-  />
-)}
-
-    </View>
+    </ScrollView>
   );
 }
 
@@ -147,6 +211,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     padding: 20,
+    paddingBottom: 50,
   },
   title: {
     fontSize: 22,
@@ -176,5 +241,16 @@ const styles = StyleSheet.create({
     fontSize: 18,
     textAlign: 'center',
     color: '#333',
+    marginBottom: 10,
   },
+  graphContainer: {
+    width: '100%',
+    marginVertical: 15,
+  },
+  graphTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    marginBottom: 5,
+  }
 });
