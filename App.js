@@ -12,15 +12,17 @@ export default function App() {
   const [resultado, setResultado] = useState(null);
   const [graficoData, setGraficoData] = useState([]);
   const [labelData, setLabelData] = useState([]);
+  const [todosLosPuntos, setTodosLosPuntos] = useState([]);
+  const [indicesVisibles, setIndicesVisibles] = useState([]);
 
   // Función para formatear números grandes
   const formatLargeNumber = (value) => {
     const numValue = parseInt(value);
     
     if (numValue >= 1000000) {
-      return `$${(numValue / 1000000).toFixed(2)}M`;
+      return `$${(numValue / 1000000).toFixed(1)}M`;
     } else if (numValue >= 1000) {
-      return `$${(numValue / 1000).toFixed(2)}k`;
+      return `$${(numValue / 1000).toFixed(1)}k`;
     } else {
       return `$${numValue}`;
     }
@@ -39,69 +41,84 @@ export default function App() {
     }
   
     let resultadoTexto = '';
-    const datos = [];
-    const labels = [];
-  
-    const MAX_LABELS_X = 6; // 💡 cantidad máxima visible
+    const todosLosDatos = [];
+    const todasLasEtiquetas = [];
+    const indicesAMostrar = [];
   
     if (graficoMensual) {
       const meses = t * 12;
-      const saltoEtiqueta = Math.ceil(meses / MAX_LABELS_X);
+      
+      // Determinamos cuántos puntos mostrar (máximo 6-8)
+      const numPuntosAMostrar = Math.min(6, meses);
+      
+      // Calculamos el "paso" entre los meses que mostraremos
+      const paso = Math.max(1, Math.floor(meses / (numPuntosAMostrar - 1)));
+      
+      for (let i = 0; i < meses; i++) {
+        const mes = i + 1;
+        let acumulado = compuesto
+          ? P * Math.pow(1 + r / 12, mes)
+          : P + (P * r * (mes / 12));
   
-      for (let i = 1; i <= meses; i++) {
-        let acumulado;
-        if (compuesto) {
-          acumulado = P * Math.pow(1 + r / 12, i);
-        } else {
-          acumulado = P + (P * r * (i / 12));
-        }
-        datos.push(Math.floor(acumulado));
-  
-        // ✅ Etiquetas espaciadas
-        if (i % saltoEtiqueta === 0 || i === 1 || i === meses) {
-          labels.push(`M${i}`);
-        } else {
-          labels.push('');
+        todosLosDatos.push(Math.floor(acumulado));
+        todasLasEtiquetas.push(`M${mes}`);
+        
+        // Seleccionamos puntos estratégicos:
+        // - Siempre mostramos el primer mes
+        // - Siempre mostramos el último mes
+        // - Mostramos meses intermedios según el paso calculado
+        if (mes === 1 || mes === meses || (mes % paso === 0 && mes !== 1 && mes !== meses)) {
+          indicesAMostrar.push(i);
         }
       }
     } else {
-      const saltoEtiqueta = Math.ceil(t / MAX_LABELS_X);
+      const años = parseInt(t);
+      
+      // Similar a lo anterior pero para años
+      const numPuntosAMostrar = Math.min(8, años);
+      const paso = Math.max(1, Math.floor(años / (numPuntosAMostrar - 1)));
+      
+      for (let i = 0; i < años; i++) {
+        const año = i + 1;
+        let acumulado = compuesto
+          ? P * Math.pow(1 + r, año)
+          : P + (P * r * año);
   
-      for (let i = 1; i <= t; i++) {
-        let acumulado;
-        if (compuesto) {
-          acumulado = P * Math.pow(1 + r, i);
-        } else {
-          acumulado = P + (P * r * i);
-        }
-        datos.push(Math.floor(acumulado));
-  
-        // ✅ Etiquetas espaciadas también en anual
-        if (i % saltoEtiqueta === 0 || i === 1 || i === t) {
-          labels.push(`A${i}`);
-        } else {
-          labels.push('');
+        todosLosDatos.push(Math.floor(acumulado));
+        todasLasEtiquetas.push(`A${año}`);
+        
+        if (año === 1 || año === años || (año % paso === 0 && año !== 1 && año !== años)) {
+          indicesAMostrar.push(i);
         }
       }
     }
   
-    const A = datos[datos.length - 1];
+    // Filtramos para mostrar solo los puntos seleccionados
+    const datosVisibles = indicesAMostrar.map(index => todosLosDatos[index]);
+    const etiquetasVisibles = indicesAMostrar.map(index => todasLasEtiquetas[index]);
+  
+    const A = todosLosDatos[todosLosDatos.length - 1];
     const interes = A - P;
   
     resultadoTexto = `Interés ${compuesto ? 'compuesto' : 'simple'}: $${interes.toLocaleString('es-CL')}\nTotal acumulado: $${A.toLocaleString('es-CL')}`;
   
     setResultado(resultadoTexto);
-    setGraficoData(datos);
-    setLabelData(labels);
+    setGraficoData(datosVisibles);
+    setLabelData(etiquetasVisibles);
+    setTodosLosPuntos(todosLosDatos);
+    setIndicesVisibles(indicesAMostrar);
   };
   
-
   // Recalcular el gráfico cuando cambie entre mensual y anual
   useEffect(() => {
     if (capital && tasa && tiempo) {
       calcular();
     }
   }, [graficoMensual, compuesto]);
+
+  // Calculamos el ancho disponible para el gráfico (con margen de seguridad)
+  const screenWidth = Dimensions.get('window').width;
+  const chartWidth = screenWidth - 60; // Reducimos el ancho para asegurar que no sobresalga
 
   return (
     <ScrollView>
@@ -144,7 +161,11 @@ export default function App() {
           />
         </View>
 
-        <Button title="Calcular" onPress={calcular} />
+        <Button 
+          title="CALCULAR" 
+          onPress={calcular}
+          color="#2196F3"
+        />
 
         {resultado && <Text style={styles.result}>{resultado}</Text>}
         
@@ -153,50 +174,65 @@ export default function App() {
             <Text style={styles.graphTitle}>
               Proyección {graficoMensual ? 'Mensual' : 'Anual'}
             </Text>
-            <LineChart
-              data={{
-                labels: labelData,
-                datasets: [{ data: graficoData }],
-              }}
-              width={Dimensions.get('window').width - 40}
-              height={220}
-              fromZero={false}
-              yAxisSuffix=""
-              yAxisInterval={1}
-              bezier
-              chartConfig={{
-                backgroundColor: '#fff',
-                backgroundGradientFrom: '#f0f4f7',
-                backgroundGradientTo: '#f0f4f7',
-                color: (opacity = 1) => `rgba(0, 128, 255, ${opacity})`,
-                labelColor: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
-                style: {
+            <View style={styles.chartWrapper}>
+              <LineChart
+                data={{
+                  labels: labelData,
+                  datasets: [{ 
+                    data: graficoData,
+                    color: (opacity = 1) => `rgba(33, 150, 243, ${opacity})`, // Color azul más vibrante
+                    strokeWidth: 2
+                  }],
+                }}
+                width={chartWidth}
+                height={220}
+                fromZero={false}
+                yAxisSuffix=""
+                yAxisInterval={1}
+                bezier={false}
+                chartConfig={{
+                  backgroundColor: '#f8f9fa',
+                  backgroundGradientFrom: '#f8f9fa',
+                  backgroundGradientTo: '#f8f9fa',
+                  color: (opacity = 1) => `rgba(33, 150, 243, ${opacity})`,
+                  labelColor: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
+                  style: {
+                    borderRadius: 16,
+                  },
+                  propsForDots: {
+                    r: '5',
+                    strokeWidth: '1',
+                    stroke: '#2196F3',
+                    fill: '#ffffff'
+                  },
+                  propsForBackgroundLines: {
+                    strokeDasharray: '',
+                    strokeWidth: 0.5,
+                    stroke: '#E0E0E0'
+                  },
+                  formatYLabel: (value) => formatLargeNumber(value),
+                  decimalPlaces: 0,
+                  // Aumentamos el padding a la izquierda para evitar cortar el eje Y
+                  paddingLeft: 15,
+                  // Ajustamos el padding derecho para evitar que el gráfico sobresalga
+                  paddingRight: 25,
+                }}
+                style={{
+                  marginVertical: 8,
                   borderRadius: 16,
-                },
-                propsForDots: {
-                  r: '3',  // Reducido para gráficos mensuales con muchos puntos
-                  strokeWidth: '2',
-                  stroke: '#007AFF',
-                },
-                propsForBackgroundLines: {
-                  strokeDasharray: '',
-                  strokeWidth: 0.4,
-                },
-                formatYLabel: (value) => formatLargeNumber(value),
-                decimalPlaces: 0,
-              }}
-              style={{
-                marginTop: 10,
-                borderRadius: 16,
-              }}
-              withInnerLines={true}
-              withVerticalLines={false}
-              withHorizontalLines={true}
-              withVerticalLabels={true}
-              withHorizontalLabels={true}
-              formatYLabel={(value) => formatLargeNumber(value)}
-              hidePointsAtIndex={graficoMensual ? Array.from({ length: labelData.length }).map((_, i) => i % 3 !== 0 ? i : null).filter(i => i !== null) : []}
-            />
+                  // Quitamos el paddingRight que teníamos antes para evitar duplicar ajustes
+                }}
+                withInnerLines={true}
+                withVerticalLines={true}
+                withHorizontalLines={true}
+                withVerticalLabels={true}
+                withHorizontalLabels={true}
+                formatYLabel={(value) => formatLargeNumber(value)}
+                segments={5}
+                // Ajustamos el ancho de la etiqueta Y para evitar cortes
+                yAxisLabelWidth={50}
+              />
+            </View>
           </View>
         )}
       </View>
@@ -242,15 +278,34 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     color: '#333',
     marginBottom: 10,
+    fontWeight: '500',
   },
   graphContainer: {
     width: '100%',
     marginVertical: 15,
+    backgroundColor: 'white',
+    borderRadius: 16,
+    padding: 15,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+    // Aseguramos overflow hidden para que nada sobresalga del contenedor
+    overflow: 'hidden',
   },
   graphTitle: {
     fontSize: 16,
     fontWeight: 'bold',
     textAlign: 'center',
-    marginBottom: 5,
+    marginBottom: 10,
+    color: '#333',
+  },
+  // Nuevo contenedor para el gráfico para asegurar que nada sobresalga
+  chartWrapper: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+    width: '100%',
   }
 });
