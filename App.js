@@ -82,7 +82,10 @@ Total acumulado: $${resultado.total.toLocaleString('es-CL')}`;
           placeholder="Capital (P)"
           keyboardType="numeric"
           value={capital}
-          onChangeText={setCapital}
+          onChangeText={(text) => {
+            setCapital(text);
+            setErrores((prev) => ({ ...prev, capital: !esNumeroValido(text) }));
+          }}
         />
         {errores.capital && <Text style={styles.errorText}>Valor inválido</Text>}
 
@@ -91,7 +94,10 @@ Total acumulado: $${resultado.total.toLocaleString('es-CL')}`;
           placeholder="Tasa de interés (%)"
           keyboardType="numeric"
           value={tasa}
-          onChangeText={setTasa}
+          onChangeText={(text) => {
+            setTasa(text);
+            setErrores((prev) => ({ ...prev, tasa: !esNumeroValido(text) }));
+          }}
         />
         {errores.tasa && <Text style={styles.errorText}>Valor inválido</Text>}
 
@@ -100,9 +106,13 @@ Total acumulado: $${resultado.total.toLocaleString('es-CL')}`;
           placeholder="Periodo (años)"
           keyboardType="numeric"
           value={tiempo}
-          onChangeText={setTiempo}
+          onChangeText={(text) => {
+            setTiempo(text);
+            setErrores((prev) => ({ ...prev, tiempo: !esNumeroValido(text) }));
+          }}
         />
         {errores.tiempo && <Text style={styles.errorText}>Valor inválido</Text>}
+
 
         <View style={styles.switchContainer}>
           <Text>Interés compuesto</Text>
