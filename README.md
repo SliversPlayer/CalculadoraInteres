@@ -26,4 +26,20 @@ Una aplicación móvil que permite calcular y visualizar el crecimiento del capi
 | **Validación personalizada** | Regex + estilos dinámicos para entradas numéricas |
 
 ## 📂 Estructura del proyecto
+/src
+├── App.js # Componente principal
+├── components/
+│ └── GraficoInteres.js # Componente de gráfico
+└── utils/
+├── calculadora.js # Lógica de cálculo de interés
+├── puntosUniformes.js # Algoritmo para seleccionar puntos en eje X
+└── formato.js # Formato de números grandes (opcional)
 
+
+## 🚀 Próximas mejoras
+
+- Exportar gráficos como imagen o PDF
+- Guardar simulaciones anteriores
+- Comparar distintos escenarios en el mismo gráfico
+- Soporte multimoneda (CLP, USD, EUR...)
+- Incluir en Google Play
